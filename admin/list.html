@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Control Panel</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      background: linear-gradient(to right, #ece9e6, #ffffff);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #3498db;
+      padding: 20px;
+      color: #ecf0f1;
+      font-size: 1.8rem;
+      text-align: center;
+      font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    main {
+      flex: 1;
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      padding: 14px 12px;
+      text-align: left;
+      font-size: 0.95rem;
+      border-bottom: 1px solid #eee;
+    }
+
+    th {
+      background-color: #3498db;
+      color: white;
+      font-size: 1rem;
+    }
+
+    tr:hover {
+      background-color: #f9f9f9;
+    }
+
+    .icon-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 5px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 5px;
+      transition: background 0.2s;
+    }
+
+    .icon-btn.view:hover {
+      background: #d4f5e9;
+    }
+
+    .icon-btn.delete:hover {
+      background: #f9d6d5;
+    }
+
+    .icon {
+      width: 22px;
+      height: 22px;
+      stroke: #555;
+    }
+
+    footer {
+      background: #3498db;
+      color: white;
+      text-align: center;
+      padding: 15px;
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 600px) {
+      header {
+        font-size: 1.5rem;
+      }
+      th, td {
+        font-size: 0.85rem;
+        padding: 10px;
+      }
+      .icon {
+        width: 20px;
+        height: 20px;
+      }
+    }
+  </style>
+
+  <!-- Firebase & CryptoJS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.8/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.8/firebase-database-compat.js"></script>
+
+  <!-- Lucide Icons (for SVG icons) -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+</head>
+
+<body>
+
+<header>
+  Admin Dashboard
+</header>
+
+<main>
+  <table id="user-table">
+    <thead>
+      <tr>
+        <th>User ID</th>
+        <th>Registered Date</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Users will load here -->
+    </tbody>
+  </table>
+</main>
+
+<footer>
+  &copy; 2025 Admin Panel. All rights reserved.
+</footer>
+
+<script>
+  // Firebase Config
+  const firebaseConfig = {
+    apiKey: "AIzaSyCQHiJOWAmn3aDSktr3K2dYpKrFOj3ATVY",
+    authDomain: "hddd-2d7cc.firebaseapp.com",
+    databaseURL: "https://hddd-2d7cc-default-rtdb.firebaseio.com",
+    projectId: "hddd-2d7cc",
+    storageBucket: "hddd-2d7cc.appspot.com",
+    messagingSenderId: "421872663949",
+    appId: "1:421872663949:web:3b8e384c7c1488249c11c4",
+    measurementId: "G-W54QCSMY13"
+  };
+  firebase.initializeApp(firebaseConfig);
+
+  function decrypt(text, key) {
+    const bytes = CryptoJS.AES.decrypt(text, key);
+    return bytes.toString(CryptoJS.enc.Utf8);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const username = urlParams.get("username");
+    const password = urlParams.get("password");
+    const encryptionKey = '8hTygdnl';
+
+    const decryptedUsername = decrypt(username, encryptionKey);
+    const decryptedPassword = decrypt(password, encryptionKey);
+
+    const authRef = firebase.database().ref('auth');
+
+    authRef.once('value', snapshot => {
+      const authData = snapshot.val();
+      if (authData && authData.username === decryptedUsername && authData.password === decryptedPassword) {
+        loadUsers();
+      } else {
+        window.location.href = 'index.html';
+      }
+    });
+
+    function loadUsers() {
+      const tableBody = document.querySelector('#user-table tbody');
+      const dbRef = firebase.database().ref('/data');
+
+      dbRef.on('value', snapshot => {
+        tableBody.innerHTML = '';
+
+        const users = [];
+
+        snapshot.forEach(child => {
+          const key = child.key;
+          const details = child.val().Details || {};
+          const registerDate = details.RegisterDate || "Unknown";
+
+          users.push({ key, registerDate });
+        });
+
+        // Sort by latest register date
+        users.sort((a, b) => new Date(b.registerDate) - new Date(a.registerDate));
+
+        users.forEach(user => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${user.key}</td>
+            <td>${user.registerDate}</td>
+            <td>
+              <button class="icon-btn view" onclick="viewUser('${user.key}')">
+                <svg class="icon" data-lucide="eye"></svg>
+              </button>
+              <button class="icon-btn delete" onclick="deleteUser('${user.key}')">
+                <svg class="icon" data-lucide="trash-2"></svg>
+              </button>
+            </td>
+          `;
+          tableBody.appendChild(row);
+        });
+
+        // Activate Lucide Icons
+        lucide.createIcons();
+      });
+    }
+
+    window.viewUser = function(key) {
+      window.location.href = `view.html?key=${key}`;
+    }
+
+    window.deleteUser = function(key) {
+      if (confirm(`Are you sure you want to delete ${key}?`)) {
+        firebase.database().ref(`/data/${key}`).remove()
+          .then(() => {
+            alert('Deleted Successfully');
+          })
+          .catch(error => {
+            console.error(error);
+            alert('Error deleting user');
+          });
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
